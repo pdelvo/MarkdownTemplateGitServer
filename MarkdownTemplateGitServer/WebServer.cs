@@ -73,6 +73,8 @@ namespace MarkdownTemplateGitServer
                         path = spl[0];
                     }
 
+                    if (path == "") path = "index";
+
                     if (!path.Contains("."))
                         path += ".md";
 

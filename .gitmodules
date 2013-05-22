@@ -1,0 +1,3 @@
+[submodule "external/markdowndeep"]
+	path = external/markdowndeep
+	url = git://github.com/pdelvo/markdowndeep.git

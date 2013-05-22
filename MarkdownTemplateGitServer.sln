@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkdownTemplateGitServer", "MarkdownTemplateGitServer\MarkdownTemplateGitServer.csproj", "{648DC4D2-FDFE-4598-A5D2-2AA00DB7D9B2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkdownDeep", "external\markdowndeep\MarkdownDeep\MarkdownDeep.csproj", "{1569ED47-C7C9-4261-B6F4-7445BD0F2C95}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{648DC4D2-FDFE-4598-A5D2-2AA00DB7D9B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{648DC4D2-FDFE-4598-A5D2-2AA00DB7D9B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{648DC4D2-FDFE-4598-A5D2-2AA00DB7D9B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{648DC4D2-FDFE-4598-A5D2-2AA00DB7D9B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1569ED47-C7C9-4261-B6F4-7445BD0F2C95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1569ED47-C7C9-4261-B6F4-7445BD0F2C95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1569ED47-C7C9-4261-B6F4-7445BD0F2C95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1569ED47-C7C9-4261-B6F4-7445BD0F2C95}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

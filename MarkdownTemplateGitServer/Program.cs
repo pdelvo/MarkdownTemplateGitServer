@@ -14,6 +14,7 @@ namespace MarkdownTemplateGitServer
     {
         static void Main(string[] args)
         {
+
             var server = new WebServer(args[0]);
 
             server.Open();

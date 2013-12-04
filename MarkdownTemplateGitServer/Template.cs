@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using GitSharp;
 
@@ -7,16 +8,16 @@ namespace MarkdownTemplateGitServer
 {
     public static class Template
     {
-        public static string PerformTemplate(string path, string content, Dictionary<string, string> sections)
+        public static string PerformTemplate(string path, string content, Dictionary<string, string> sections, IEnumerable<KeyValuePair<string,string>> template , string repository = "Backend.git", string branch = "template")
         {
             var resultPath = Path.ChangeExtension(path, ".html");
 
-            var data = GetTemplate(resultPath) ?? GetTemplate("default.html");
+            var data = GetTemplate(resultPath, repository, branch) ?? GetTemplate("default.html", repository, branch);
 
             if (data == null) return content;
 
-            var sectionTemplate = GetTemplate(Path.GetFileNameWithoutExtension(path) + "_section.html") ??
-                                  GetTemplate("_section.html");
+            var sectionTemplate = GetTemplate(Path.GetFileNameWithoutExtension(path) + "_section.html", repository, branch) ??
+                                  GetTemplate("_section.html", repository, branch);
 
             var sectionBuilder = new StringBuilder();
 
@@ -28,17 +29,18 @@ namespace MarkdownTemplateGitServer
                 }
             }
 
-            return data
+            var text = data
                 .Replace("[content]", content)
-                .Replace("[nav]", sectionBuilder.ToString())
-                .Replace("[title]", Path.GetFileNameWithoutExtension(path));
+                .Replace("[nav]", sectionBuilder.ToString());
+
+            return template.Aggregate(text, (current, keyValuePair) => current.Replace("[" + keyValuePair.Key + "]", keyValuePair.Value));
         }
 
-        private static string GetTemplate(string path)
+        public static string GetTemplate(string path, string repository = "Backend.git", string branch = "template")
         {
-            var repo = new Repository("Backend.git");
+            var repo = new Repository(repository);
 
-            var commit = repo.Get<Commit>("template");
+            var commit = repo.Get<Commit>(branch);
             if (commit == null) return null;
             var blob = commit.Tree[path];
 

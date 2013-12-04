@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -51,21 +54,18 @@ namespace MarkdownTemplateGitServer
 
                     if (item.Request.HttpMethod != "GET")
                     {
-                        item.Response.StatusCode = 404;
-                        using (var writer = new StreamWriter(item.Response.OutputStream))
-                        {
-                            writer.WriteLine("Not found");
-                        }
-
-                        item.Response.Close();
+                        NotFound(item);
+                        continue;
                     }
 
                     var path = item.Request.Url.AbsolutePath.Substring(1);
 
+                    var pageName = path;
+
                     var spl = path.Split('@');
 
 
-                    var branchName = "master";
+                    var branchName = ConfigurationManager.AppSettings["dataRepositoryDefaultBranch"];
 
                     if (spl.Length == 2)
                     {
@@ -73,22 +73,110 @@ namespace MarkdownTemplateGitServer
                         path = spl[0];
                     }
 
-                    if (path == "") path = "Index";
+                    if (path == "") pageName = path = ConfigurationManager.AppSettings["defaultFile"];
 
                     if (!path.Contains("."))
-                        path += ".md";
+                        path += ".md";    
+                    
+                    if (branchName.Contains("..."))
+                        {
+                            //Compare view
 
-                    var blob = GitBackend.GetData(path, branchName);
+                            var branches = branchName.Split(new string[] {"..."}, 2, StringSplitOptions.None);
+
+                            if (branches.Length != 2)
+                                NotFound(item);
+                            else
+                            {
+
+                                var items1 = GitBackend.GetData(path, branches[0], ConfigurationManager.AppSettings["dataRepository"]).Data;
+                                var items2 = GitBackend.GetData(path, branches[1], ConfigurationManager.AppSettings["dataRepository"]).Data;
+                                var items1Lines = items1.Split('\n');
+                                var items2Lines = items2.Split('\n');
+                                var diff = Diff.DiffText(items1, items2, false, false, false);
+
+                                var deleteRowTemplate = Template.GetTemplate("diff/DeleteRow.html", ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]);
+                                var insertRowTemplate = Template.GetTemplate("diff/InsertRow.html", ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]);
+                                var notChangedRowTemplate = Template.GetTemplate("diff/NotChangedRow.html", ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]);
+                                var seperator = Template.GetTemplate("diff/Seperator.html", ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]);
+
+                                var builder = new StringBuilder();
+
+                                foreach (var item1 in diff)
+                                {
+                                    for (int i = 0; i < 3; i++)
+                                    {
+                                        var originalIndex = item1.StartA - 3 + i;
+                                        var newIndex = item1.StartB - 3 + i;
+                                        if (originalIndex > 0 && newIndex > 0)
+                                        {
+                                            builder.Append(notChangedRowTemplate
+                                                               .Replace("[originalIndex]",
+                                                                        (originalIndex + 1).ToString())
+                                                               .Replace("[newIndex]", (newIndex + 1).ToString())
+                                                               .Replace("[content]",
+                                                                        items1Lines[originalIndex].Replace(" ", "&nbsp;")));
+                                        }
+                                    }
+
+                                    if (item1.deletedA > 0)
+                                    {
+                                        for (int i = 0; i < item1.deletedA; i++)
+                                        {
+                                            builder.Append(deleteRowTemplate
+                                                               .Replace("[originalIndex]",
+                                                                        (item1.StartA + i + 1).ToString())
+                                                               .Replace("[newIndex]", "...")
+                                                               .Replace("[content]",
+                                                                        items1Lines[item1.StartA + i].Replace("  ", "&nbsp;&nbsp;")));
+                                        }
+                                    }
+                                    if (item1.insertedB > 0)
+                                    {
+                                        for (int i = 0; i < item1.insertedB; i++)
+                                        {
+                                            builder.Append(insertRowTemplate
+                                                               .Replace("[originalIndex]", "...")
+                                                               .Replace("[newIndex]",
+                                                                        (item1.StartA + i + 1).ToString())
+                                                               .Replace("[content]",
+                                                                        items2Lines[item1.StartB + i].Replace("  ", "&nbsp;&nbsp;")));
+                                        }
+                                    }
+                                    for (int i = 0; i < 3; i++)
+                                    {
+                                        var originalIndex = item1.StartA + item1.deletedA + i;
+                                        var newIndex = item1.StartB + item1.insertedB + i;
+                                        if (originalIndex < items1Lines.Length && newIndex < items2Lines.Length)
+                                        {
+
+                                            builder.Append(notChangedRowTemplate
+                                                               .Replace("[originalIndex]",
+                                                                        (originalIndex + 1).ToString())
+                                                               .Replace("[newIndex]", (newIndex + 1).ToString())
+                                                               .Replace("[content]",
+                                                                        items1Lines[originalIndex].Replace("  ", "&nbsp;&nbsp;")));
+                                        }
+                                    }
+                                    builder.Append(seperator);
+                                }
+                                item.Response.AddHeader("Content-Type", "text/html");
+                                using (var writer = new StreamWriter(item.Response.OutputStream))
+                                {
+                                    writer.WriteLine(Template.PerformTemplate("diff/default.html", builder.ToString(), new Dictionary<string, string>(),
+                                        new Dictionary<string, string>{{"title", "Diff: " + Path.GetFileNameWithoutExtension(path) + " (" + branchName + ")"}},
+                                        ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]));
+                                }
+                                item.Response.Close();
+                            }
+                            continue;
+                        }
+
+                    var blob = GitBackend.GetData(path, branchName, ConfigurationManager.AppSettings["dataRepository"]);
 
                     if (blob == null)
                     {
-                        item.Response.StatusCode = 404;
-                        using (var writer = new StreamWriter(item.Response.OutputStream))
-                        {
-                            writer.WriteLine("Not found");
-                        }
-
-                        item.Response.Close();
+                        NotFound(item);
                         continue;
                     }
 
@@ -103,13 +191,38 @@ namespace MarkdownTemplateGitServer
                             };
 
                         item.Response.AddHeader("Content-Type", "text/html");
+
+                        var oldVersions = GitBackend.GetHistory(path, branchName, ConfigurationManager.AppSettings["dataRepository"]);
+
+                        var stringBuilder = new StringBuilder();
+
+                        var otherVersionTemplate = Template.GetTemplate("_otherVersionRow.html", ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"])
+                            ?? "<li><a href=\"[viewUrl]\">[message]</a></li>";
+
+                        foreach (var commit in oldVersions)
+                        {
+                            stringBuilder.Append(otherVersionTemplate
+                                                                  .Replace("[date]", commit.CommitDate.ToString(CultureInfo.GetCultureInfo("en-US")))
+                                                                  .Replace("[committerName]", commit.Committer.Name)
+                                                                  .Replace("[committerEmail]", commit.Committer.EmailAddress)
+                                                                  .Replace("[hash]", commit.Hash)
+                                                                  .Replace("[message]", commit.Message)
+                                                                  .Replace("[viewUrl]", path.Replace(".md", "") + "@" + commit.Hash));
+                        }
+
                         using (var writer = new StreamWriter(item.Response.OutputStream))
                         {
                             Dictionary<string, LinkDefinition> definitions;
                             Dictionary<string, string> sections;
 
                             var html = markdown.Transform(blob.Data, out definitions, out sections);
-                            writer.WriteLine(Template.PerformTemplate(path,html, sections));
+                            var dic = new Dictionary<string, string>
+                                {
+                                    {"title", pageName},
+                                    {"otherVersions", stringBuilder.ToString()}
+                                };
+
+                            writer.WriteLine(Template.PerformTemplate(path, html, sections, dic, ConfigurationManager.AppSettings["templateRepository"], ConfigurationManager.AppSettings["templateRepositoryBranch"]));
                         }
                         item.Response.Close();
                         continue;
@@ -125,6 +238,17 @@ namespace MarkdownTemplateGitServer
                     item.Response.Close();
                 }
             }
+        }
+
+        private static void NotFound(HttpListenerContext item)
+        {
+            item.Response.StatusCode = 404;
+            using (var writer = new StreamWriter(item.Response.OutputStream))
+            {
+                writer.WriteLine("Not found");
+            }
+
+            item.Response.Close();
         }
 
         private static IDictionary<string, string> _mappings = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase) {
